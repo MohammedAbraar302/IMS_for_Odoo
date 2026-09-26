@@ -1,5 +1,48 @@
+import secrets
+from datetime import timedelta
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+
+class EmailOTP(models.Model):
+    PURPOSE_CHOICES = [
+        ("signup_verify", "Signup verification"),
+        ("password_reset", "Password reset"),
+    ]
+    email = models.EmailField(db_index=True)
+    code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.IntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+    max_attempts = models.IntegerField(default=5)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["email", "purpose", "is_used"])]
+
+    def __str__(self):
+        return f"{self.email} [{self.purpose}] expired={self.is_expired()} used={self.is_used}"
+
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+
+    def can_attempt(self):
+        return not self.is_used and not self.is_expired() and self.attempts < self.max_attempts
+
+    @classmethod
+    def create_code(cls, email, purpose, ttl_minutes=10):
+        # Invalidate previous unused codes for same email+purpose
+        cls.objects.filter(email=email, purpose=purpose, is_used=False).update(is_used=True)
+        code = f"{secrets.randbelow(900000) + 100000:06d}"
+        return cls.objects.create(
+            email=email.lower().strip(),
+            code=code,
+            purpose=purpose,
+            expires_at=timezone.now() + timedelta(minutes=ttl_minutes),
+        )
 
 
 class Category(models.Model):

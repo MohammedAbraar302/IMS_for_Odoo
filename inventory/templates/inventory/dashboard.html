@@ -62,6 +62,37 @@
     </div>
 </div>
 
+<!-- Analytics Graphics -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">Stock by Category</h3>
+        <p class="text-xs text-gray-500 mb-4">On-hand quantity per category{% if selected_warehouse %} (filtered warehouse){% endif %}</p>
+        <div class="h-64"><canvas id="chartStockCat"></canvas></div>
+    </div>
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">Documents: Pending vs Done</h3>
+        <p class="text-xs text-gray-500 mb-4">Pipeline per operation type</p>
+        <div class="h-64"><canvas id="chartDocs"></canvas></div>
+    </div>
+    <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-1">Low Stock Alerts</h3>
+        <p class="text-xs text-gray-500 mb-4">Items at or below reorder point</p>
+        <div class="space-y-2 max-h-64 overflow-y-auto">
+            {% for s in low_stock_items %}
+            <div class="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-rose-50/60 border border-rose-100">
+                <div class="min-w-0">
+                    <p class="text-xs font-bold text-gray-900 truncate">{{ s.product.name }}</p>
+                    <p class="text-[11px] text-gray-500 truncate">{{ s.location }} · reorder ≥ {{ s.reorder_point }}</p>
+                </div>
+                <span class="text-sm font-bold text-rose-600 shrink-0">{{ s.current_stock }}</span>
+            </div>
+            {% empty %}
+            <p class="text-xs text-gray-400 py-8 text-center">No low-stock items. All levels healthy.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <!-- Filters Panel -->
 <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-8">
     <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
@@ -201,4 +232,39 @@
         </table>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  var catLabels = [{% for l in chart_cat_labels %}"{{ l|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  var catData = [{% for v in chart_cat_data %}{{ v }}{% if not forloop.last %},{% endif %}{% endfor %}];
+  var docLabels = [{% for l in chart_docs_labels %}"{{ l|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}];
+  var docPending = [{% for v in chart_docs_pending %}{{ v }}{% if not forloop.last %},{% endif %}{% endfor %}];
+  var docDone = [{% for v in chart_docs_done %}{{ v }}{% if not forloop.last %},{% endif %}{% endfor %}];
+
+  var palette = ['#6366f1','#10b981','#f59e0b','#ef4444','#0ea5e9','#8b5cf6','#14b8a6','#f97316'];
+
+  var c1 = document.getElementById('chartStockCat');
+  if (c1) {
+    new Chart(c1, {
+      type: 'doughnut',
+      data: { labels: catLabels.length ? catLabels : ['No stock'], datasets: [{ data: catData.length ? catData : [1], backgroundColor: palette, borderWidth: 2, borderColor: '#fff' }] },
+      options: { maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+  }
+  var c2 = document.getElementById('chartDocs');
+  if (c2) {
+    new Chart(c2, {
+      type: 'bar',
+      data: { labels: docLabels, datasets: [
+        { label: 'Pending', data: docPending, backgroundColor: '#f59e0b', borderRadius: 6 },
+        { label: 'Done', data: docDone, backgroundColor: '#10b981', borderRadius: 6 }
+      ] },
+      options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+  }
+})();
+</script>
 {% endblock %}

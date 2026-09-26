@@ -14,7 +14,16 @@ from .models import (
     AdjustmentItem,
     InternalTransfer,
     TransferItem,
+    EmailOTP,
 )
+
+
+@admin.register(EmailOTP)
+class EmailOTPAdmin(admin.ModelAdmin):
+    list_display = ["email", "purpose", "code", "is_used", "attempts", "expires_at", "created_at"]
+    list_filter = ["purpose", "is_used"]
+    search_fields = ["email", "code"]
+    date_hierarchy = "created_at"
 
 
 @admin.register(Category)

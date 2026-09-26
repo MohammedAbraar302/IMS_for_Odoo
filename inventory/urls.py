@@ -6,6 +6,7 @@ app_name = 'inventory'
 urlpatterns = [
     # Auth
     path('signup/', views.signup_view, name='signup'),
+    path('signup/verify/', views.signup_verify_view, name='signup_verify'),
     path('login/', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('reset-password/', views.otp_reset_view, name='reset_password'),

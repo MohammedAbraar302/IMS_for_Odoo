@@ -1,4 +1,6 @@
 import random
+from django.conf import settings
+from django.core.mail import send_mail
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.models import User
@@ -13,8 +15,38 @@ from django.urls import reverse
 from .models import (
     Category, Warehouse, Location, UnitOfMeasure, Product,
     StockRecord, Receipt, ReceiptItem, DeliveryOrder, DeliveryItem,
-    InventoryAdjustment, AdjustmentItem, InternalTransfer, TransferItem
+    InventoryAdjustment, AdjustmentItem, InternalTransfer, TransferItem,
+    EmailOTP,
 )
+
+
+def _send_otp_email(email, code, purpose_label):
+    subject = f"StockFlow IMS - {purpose_label} code: {code}"
+    message = (
+        f"Your StockFlow IMS verification code is: {code}\n\n"
+        f"Purpose: {purpose_label}\n"
+        f"It expires in {settings.OTP_TTL_MINUTES} minutes and can be used once.\n"
+        f"If you did not request this, please ignore this email."
+    )
+    send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
+
+
+def _issue_otp(email, purpose):
+    otp = EmailOTP.create_code(email, purpose, ttl_minutes=settings.OTP_TTL_MINUTES)
+    otp.max_attempts = settings.OTP_MAX_ATTEMPTS
+    otp.save(update_fields=["max_attempts"])
+    try:
+        _send_otp_email(email, otp.code, otp.get_purpose_display())
+        sent = True
+    except Exception:
+        sent = False
+    return otp, sent
+
+
+def _show_demo_code():
+    # Console/locmem backends never reach a real inbox — surface the code on-screen only then.
+    backend = (getattr(settings, "EMAIL_BACKEND", "") or "").lower()
+    return "console" in backend or "locmem" in backend or "dummy" in backend
 
 # --- AUTH VIEWS ---
 
@@ -22,26 +54,77 @@ def signup_view(request):
     if request.user.is_authenticated:
         return redirect('inventory:dashboard')
     if request.method == 'POST':
-        username = request.POST.get('username')
-        email = request.POST.get('email')
+        username = (request.POST.get('username') or '').strip()
+        email = (request.POST.get('email') or '').strip().lower()
         password = request.POST.get('password')
         password_confirm = request.POST.get('password_confirm')
-        
+
         if not username or not email or not password:
             messages.error(request, "All fields are required.")
         elif password != password_confirm:
             messages.error(request, "Passwords do not match.")
         elif User.objects.filter(username=username).exists():
             messages.error(request, "Username already exists.")
-        elif User.objects.filter(email=email).exists():
+        elif User.objects.filter(email__iexact=email).exists():
             messages.error(request, "Email already registered.")
         else:
-            user = User.objects.create_user(username=username, email=email, password=password)
-            login(request, user)
-            messages.success(request, "Registration successful! Welcome to the IMS Dashboard.")
-            return redirect('inventory:dashboard')
-            
+            with transaction.atomic():
+                user = User.objects.create_user(username=username, email=email, password=password)
+                user.is_active = False  # require email OTP verification
+                user.save(update_fields=["is_active"])
+                otp, sent = _issue_otp(email, "signup_verify")
+            request.session['pending_signup_email'] = email
+            if _show_demo_code():
+                messages.success(request, f"OTP sent to {email}. DEV MODE — your code is: {otp.code}")
+            elif not sent:
+                messages.success(request, f"OTP send failed, demo code: {otp.code}")
+            else:
+                messages.success(request, f"OTP sent to {email}. Enter the 6-digit code to verify your account.")
+            return redirect('inventory:signup_verify')
+
     return render(request, 'inventory/auth/signup.html')
+
+
+def signup_verify_view(request):
+    email = request.session.get('pending_signup_email', '')
+    if request.user.is_authenticated:
+        return redirect('inventory:dashboard')
+    if not email:
+        messages.error(request, "No pending signup found. Please register first.")
+        return redirect('inventory:signup')
+    if request.method == 'POST':
+        if 'resend' in request.POST:
+            otp, sent = _issue_otp(email, "signup_verify")
+            if _show_demo_code():
+                messages.success(request, f"New OTP sent. DEV MODE — your code is: {otp.code}")
+            elif not sent:
+                messages.success(request, f"OTP send failed, demo code: {otp.code}")
+            else:
+                messages.success(request, "New OTP sent to your email.")
+            return render(request, 'inventory/auth/signup_verify.html', {'email': email})
+        code = (request.POST.get('otp') or '').strip()
+        otp = EmailOTP.objects.filter(email__iexact=email, purpose="signup_verify", is_used=False).order_by('-created_at').first()
+        if not otp or not otp.can_attempt():
+            messages.error(request, "OTP expired or too many attempts. Please resend a new code.")
+            return render(request, 'inventory/auth/signup_verify.html', {'email': email})
+        otp.attempts += 1
+        otp.save(update_fields=["attempts"])
+        if otp.code != code:
+            messages.error(request, f"Invalid code. {otp.max_attempts - otp.attempts} attempts left.")
+            return render(request, 'inventory/auth/signup_verify.html', {'email': email})
+        otp.is_used = True
+        otp.save(update_fields=["is_used"])
+        user = User.objects.filter(email__iexact=email).first()
+        if user:
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+            login(request, user)
+            request.session.pop('pending_signup_email', None)
+            messages.success(request, "Email verified! Welcome to the IMS Dashboard.")
+            return redirect('inventory:dashboard')
+        messages.error(request, "Account not found. Please sign up again.")
+        return redirect('inventory:signup')
+    return render(request, 'inventory/auth/signup_verify.html', {'email': email})
 
 
 def login_view(request):
@@ -56,6 +139,12 @@ def login_view(request):
             messages.success(request, "Welcome back!")
             return redirect('inventory:dashboard')
         else:
+            # Inactive (unverified) account gives a clearer hint
+            maybe = User.objects.filter(username=username).first()
+            if maybe is not None and not maybe.is_active and maybe.check_password(password or ''):
+                request.session['pending_signup_email'] = maybe.email
+                messages.error(request, "Account not verified. Enter the OTP sent to your email.")
+                return redirect('inventory:signup_verify')
             messages.error(request, "Invalid username or password.")
     return render(request, 'inventory/auth/login.html')
 
@@ -68,48 +157,58 @@ def logout_view(request):
 
 def otp_reset_view(request):
     if request.method == 'POST':
-        email = request.POST.get('email')
+        email = (request.POST.get('email') or '').strip().lower()
         step = request.POST.get('step', '1')
-        
+
         if step == '1':
-            user = User.objects.filter(email=email).first()
+            user = User.objects.filter(email__iexact=email).first()
             if user:
-                # Simulate OTP generation
-                otp = str(random.randint(100000, 999999))
-                request.session['reset_otp'] = otp
+                otp, sent = _issue_otp(email, "password_reset")
                 request.session['reset_email'] = email
-                # Store the mock OTP in a success message so user can see/use it!
-                messages.success(request, f"OTP Sent! For demo purposes, your OTP is: {otp}")
+                if _show_demo_code():
+                    messages.success(request, f"OTP sent to {email}. DEV MODE — your code is: {otp.code}")
+                elif not sent:
+                    messages.success(request, f"OTP send failed, demo code: {otp.code}")
+                else:
+                    messages.success(request, f"OTP sent to {email}. It expires in {settings.OTP_TTL_MINUTES} minutes.")
                 return render(request, 'inventory/auth/otp_verify.html', {'email': email})
             else:
                 messages.error(request, "No user found with that email address.")
         elif step == '2':
-            otp_entered = request.POST.get('otp')
+            otp_entered = (request.POST.get('otp') or '').strip()
             new_password = request.POST.get('password')
             new_password_confirm = request.POST.get('password_confirm')
-            
-            session_otp = request.session.get('reset_otp')
-            session_email = request.session.get('reset_email')
-            
-            if otp_entered != session_otp:
-                messages.error(request, "Invalid OTP code.")
+            session_email = (request.session.get('reset_email') or '').strip().lower()
+
+            if not session_email:
+                messages.error(request, "Session expired. Please request a new OTP.")
+                return render(request, 'inventory/auth/otp_request.html')
+            otp = EmailOTP.objects.filter(email__iexact=session_email, purpose="password_reset", is_used=False).order_by('-created_at').first()
+            if not otp or not otp.can_attempt():
+                messages.error(request, "OTP expired or too many attempts. Please request a new code.")
+                return render(request, 'inventory/auth/otp_request.html', {'email': session_email})
+            otp.attempts += 1
+            otp.save(update_fields=["attempts"])
+            if otp.code != otp_entered:
+                messages.error(request, f"Invalid OTP code. {otp.max_attempts - otp.attempts} attempts left.")
                 return render(request, 'inventory/auth/otp_verify.html', {'email': session_email})
-            elif new_password != new_password_confirm:
+            if new_password != new_password_confirm:
                 messages.error(request, "Passwords do not match.")
                 return render(request, 'inventory/auth/otp_verify.html', {'email': session_email})
+            user = User.objects.filter(email__iexact=session_email).first()
+            if user:
+                user.set_password(new_password)
+                user.save()
+                otp.is_used = True
+                otp.save(update_fields=["is_used"])
+                request.session.pop('reset_email', None)
+                # legacy session keys cleanup
+                request.session.pop('reset_otp', None)
+                messages.success(request, "Password reset successful! Please log in with your new password.")
+                return redirect('inventory:login')
             else:
-                user = User.objects.filter(email=session_email).first()
-                if user:
-                    user.set_password(new_password)
-                    user.save()
-                    # Clean session
-                    request.session.pop('reset_otp', None)
-                    request.session.pop('reset_email', None)
-                    messages.success(request, "Password reset successful! Please log in with your new password.")
-                    return redirect('inventory:login')
-                else:
-                    messages.error(request, "An error occurred during password reset.")
-                    
+                messages.error(request, "An error occurred during password reset.")
+
     return render(request, 'inventory/auth/otp_request.html')
 
 
@@ -240,7 +339,36 @@ def dashboard_view(request):
     # Sort operations by date descending
     operations.sort(key=lambda x: x['date'], reverse=True)
     operations = operations[:15]
-    
+
+    # --- Chart data ---
+    # Stock by category (respects warehouse filter)
+    stock_qs = StockRecord.objects.select_related('product__category', 'location')
+    if warehouse_id:
+        stock_qs = stock_qs.filter(location__warehouse_id=warehouse_id)
+    cat_totals = stock_qs.values('product__category__name').annotate(qty=Sum('current_stock')).order_by('-qty')
+    chart_cat_labels, chart_cat_data = [], []
+    for row in cat_totals:
+        chart_cat_labels.append(row['product__category__name'] or 'Uncategorized')
+        chart_cat_data.append(row['qty'] or 0)
+
+    # Documents by type: pending vs completed
+    chart_docs_labels = ['Receipts', 'Deliveries', 'Transfers', 'Adjustments']
+    chart_docs_pending = [
+        Receipt.objects.filter(status__in=['draft', 'pending']).count(),
+        DeliveryOrder.objects.filter(status__in=['draft', 'picking', 'packed']).count(),
+        InternalTransfer.objects.filter(status__in=['draft', 'scheduled', 'in_transit']).count(),
+        InventoryAdjustment.objects.filter(status__in=['draft', 'pending']).count(),
+    ]
+    chart_docs_done = [
+        Receipt.objects.filter(status='validated').count(),
+        DeliveryOrder.objects.filter(status__in=['shipped', 'delivered']).count(),
+        InternalTransfer.objects.filter(status='completed').count(),
+        InventoryAdjustment.objects.filter(status='approved').count(),
+    ]
+
+    # Top low-stock items for highlight table
+    low_stock_items = low_stock_query.select_related('product', 'location__warehouse').order_by('current_stock')[:8]
+
     context = {
         'total_products': total_products,
         'low_stock_count': low_stock_count,
@@ -254,6 +382,12 @@ def dashboard_view(request):
         'selected_status': status_filter,
         'selected_warehouse': warehouse_id,
         'selected_category': category_id,
+        'chart_cat_labels': chart_cat_labels,
+        'chart_cat_data': chart_cat_data,
+        'chart_docs_labels': chart_docs_labels,
+        'chart_docs_pending': chart_docs_pending,
+        'chart_docs_done': chart_docs_done,
+        'low_stock_items': low_stock_items,
     }
     return render(request, 'inventory/dashboard.html', context)
 
