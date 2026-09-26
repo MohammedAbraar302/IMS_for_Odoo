@@ -1,0 +1,33 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Transfer {{ transfer.reference_number }} - StockFlow IMS{% endblock %}
+{% block header_title %}Transfer Details{% endblock %}
+{% block content %}
+<div class="max-w-3xl space-y-6">
+<div class="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm">
+<div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+<div><span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Reference</span>
+<h3 class="text-lg font-bold font-mono">{{ transfer.reference_number }}</h3></div>
+<span class="px-3 py-1 rounded-full text-xs font-bold {% if transfer.status == 'completed' %}bg-emerald-50 border border-emerald-200 text-emerald-700{% elif transfer.status == 'scheduled' %}bg-amber-50 border border-amber-200 text-amber-700{% else %}bg-gray-100 text-gray-700{% endif %}">{{ transfer.get_status_display }}</span>
+</div>
+<div class="grid grid-cols-2 gap-4 text-sm">
+<div><span class="text-xs font-bold text-gray-400 uppercase block mb-1">From</span><span class="font-semibold">{{ transfer.from_location }}</span></div>
+<div><span class="text-xs font-bold text-gray-400 uppercase block mb-1">To</span><span class="font-semibold">{{ transfer.to_location }}</span></div>
+<div><span class="text-xs font-bold text-gray-400 uppercase block mb-1">Quantity</span><span class="font-semibold">{{ transfer.quantity }}</span></div>
+<div><span class="text-xs font-bold text-gray-400 uppercase block mb-1">Created</span><span>{{ transfer.created_at|date:"M d, Y - H:i" }}</span></div>
+</div>
+{% if transfer.notes %}<div class="mt-4 p-3 bg-gray-50 rounded-xl text-xs">{{ transfer.notes }}</div>{% endif %}
+<div class="mt-4">
+<h4 class="text-xs font-bold uppercase tracking-wider mb-2">Items</h4>
+{% for item in transfer.items.all %}
+<div class="flex justify-between py-2 border-b text-sm"><span class="font-semibold">{{ item.product.name }} ({{ item.product.sku }})</span><span>{{ item.quantity }}</span></div>
+{% endfor %}
+</div>
+{% if transfer.status == 'scheduled' %}
+<div class="mt-6 flex justify-end">
+<a href="{% url 'inventory:transfer_validate' transfer.id %}" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm" onclick="return confirm('Complete this transfer? Stock will move.')">Validate & Complete Transfer</a>
+</div>
+{% endif %}
+</div>
+<a href="{% url 'inventory:transfer_list' %}" class="text-sm text-indigo-600 font-semibold">← Back to transfers</a>
+</div>
+{% endblock %}

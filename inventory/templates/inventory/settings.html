@@ -1,0 +1,27 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Settings - StockFlow IMS{% endblock %}
+{% block header_title %}Warehouse Settings{% endblock %}
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+<div class="p-6 border-b bg-slate-50/50"><h3 class="font-bold">Warehouses</h3></div>
+<table class="w-full text-sm text-left"><thead><tr class="bg-gray-50 text-xs uppercase text-gray-500 border-b"><th class="py-2 px-6">Name</th><th class="py-2 px-6">Code</th><th class="py-2 px-6">Location</th></tr></thead>
+<tbody class="divide-y">{% for w in warehouses %}<tr><td class="py-2 px-6 font-semibold">{{ w.name }}</td><td class="py-2 px-6 font-mono text-xs">{{ w.code }}</td><td class="py-2 px-6">{{ w.location }}</td></tr>{% empty %}<tr><td colspan="3" class="py-6 text-center text-gray-400">No warehouses</td></tr>{% endfor %}</tbody></table>
+<form method="POST" class="p-6 space-y-3 border-t">{% csrf_token %}<input type="hidden" name="action" value="create_warehouse">
+<h4 class="text-xs font-bold uppercase">Add Warehouse</h4>
+<input name="name" required placeholder="Name" class="w-full bg-slate-50 border rounded-xl px-4 py-2 text-sm">
+<div class="grid grid-cols-2 gap-3"><input name="code" required placeholder="Code e.g. WH01" class="bg-slate-50 border rounded-xl px-4 py-2 text-sm"><input name="location" placeholder="City / address" class="bg-slate-50 border rounded-xl px-4 py-2 text-sm"></div>
+<button class="w-full py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold">Save Warehouse</button></form>
+</div>
+<div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+<div class="p-6 border-b bg-slate-50/50"><h3 class="font-bold">Locations (Racks / Aisles)</h3></div>
+<table class="w-full text-sm text-left"><thead><tr class="bg-gray-50 text-xs uppercase text-gray-500 border-b"><th class="py-2 px-6">Warehouse</th><th class="py-2 px-6">Location</th></tr></thead>
+<tbody class="divide-y">{% for l in locations %}<tr><td class="py-2 px-6">{{ l.warehouse.name }}</td><td class="py-2 px-6 font-semibold">{{ l.name }}</td></tr>{% empty %}<tr><td colspan="2" class="py-6 text-center text-gray-400">No locations</td></tr>{% endfor %}</tbody></table>
+<form method="POST" class="p-6 space-y-3 border-t">{% csrf_token %}<input type="hidden" name="action" value="create_location">
+<h4 class="text-xs font-bold uppercase">Add Location</h4>
+<select name="warehouse" required class="w-full bg-slate-50 border rounded-xl px-4 py-2 text-sm"><option value="">-- Warehouse --</option>{% for w in warehouses %}<option value="{{ w.id }}">{{ w.name }}</option>{% endfor %}</select>
+<div class="grid grid-cols-2 gap-3"><input name="name" required placeholder="e.g. Rack A" class="bg-slate-50 border rounded-xl px-4 py-2 text-sm"><input name="code" placeholder="Code" class="bg-slate-50 border rounded-xl px-4 py-2 text-sm"></div>
+<button class="w-full py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold">Save Location</button></form>
+</div>
+</div>
+{% endblock %}

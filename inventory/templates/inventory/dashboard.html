@@ -1,0 +1,204 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Dashboard - StockFlow IMS{% endblock %}
+{% block header_title %}Operations Overview{% endblock %}
+
+{% block content %}
+<!-- KPI Dashboard Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
+    <!-- Card 1: Total Products -->
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+        <div class="h-12 w-12 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-xl font-bold">
+            <i class="fa-solid fa-box"></i>
+        </div>
+        <div>
+            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Total Products</span>
+            <span class="text-2xl font-bold text-gray-900">{{ total_products }}</span>
+        </div>
+    </div>
+
+    <!-- Card 2: Low Stock -->
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+        <div class="h-12 w-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 text-xl font-bold">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div>
+            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Low Stock Items</span>
+            <span class="text-2xl font-bold text-gray-900">{{ low_stock_count }}</span>
+        </div>
+    </div>
+
+    <!-- Card 3: Pending Receipts -->
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+        <div class="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 text-xl font-bold">
+            <i class="fa-solid fa-file-invoice"></i>
+        </div>
+        <div>
+            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Pending Receipts</span>
+            <span class="text-2xl font-bold text-gray-900">{{ pending_receipts }}</span>
+        </div>
+    </div>
+
+    <!-- Card 4: Pending Deliveries -->
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+        <div class="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 text-xl font-bold">
+            <i class="fa-solid fa-truck-ramp-box"></i>
+        </div>
+        <div>
+            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Pending Deliveries</span>
+            <span class="text-2xl font-bold text-gray-900">{{ pending_deliveries }}</span>
+        </div>
+    </div>
+
+    <!-- Card 5: Transfers Scheduled -->
+    <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 transition-transform hover:-translate-y-1">
+        <div class="h-12 w-12 rounded-xl bg-sky-50 flex items-center justify-center text-sky-600 text-xl font-bold">
+            <i class="fa-solid fa-arrows-left-right-to-line"></i>
+        </div>
+        <div>
+            <span class="text-xs text-gray-400 font-medium uppercase tracking-wider block mb-0.5">Scheduled Transfers</span>
+            <span class="text-2xl font-bold text-gray-900">{{ scheduled_transfers }}</span>
+        </div>
+    </div>
+</div>
+
+<!-- Filters Panel -->
+<div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm mb-8">
+    <div class="flex items-center gap-2 mb-4 border-b border-gray-100 pb-3">
+        <i class="fa-solid fa-filter text-indigo-600 text-sm"></i>
+        <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wider">Dynamic Filters</h3>
+    </div>
+    <form method="GET" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Filter 1: Document Type -->
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Document Type</label>
+            <select name="doc_type" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-colors">
+                <option value="">All Document Types</option>
+                <option value="Receipts" {% if selected_doc_type == "Receipts" %}selected{% endif %}>Receipts</option>
+                <option value="Delivery" {% if selected_doc_type == "Delivery" %}selected{% endif %}>Deliveries</option>
+                <option value="Internal" {% if selected_doc_type == "Internal" %}selected{% endif %}>Internal Transfers</option>
+                <option value="Adjustments" {% if selected_doc_type == "Adjustments" %}selected{% endif %}>Adjustments</option>
+            </select>
+        </div>
+
+        <!-- Filter 2: Status -->
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Status</label>
+            <select name="status" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-colors">
+                <option value="">All Statuses</option>
+                <option value="draft" {% if selected_status == "draft" %}selected{% endif %}>Draft</option>
+                <option value="pending" {% if selected_status == "pending" %}selected{% endif %}>Waiting / Pending</option>
+                <option value="validated" {% if selected_status == "validated" %}selected{% endif %}>Validated / Ready</option>
+                <option value="delivered" {% if selected_status == "delivered" %}selected{% endif %}>Done (Deliveries)</option>
+                <option value="completed" {% if selected_status == "completed" %}selected{% endif %}>Done (Transfers)</option>
+                <option value="approved" {% if selected_status == "approved" %}selected{% endif %}>Approved (Adjustments)</option>
+                <option value="cancelled" {% if selected_status == "cancelled" %}selected{% endif %}>Cancelled</option>
+            </select>
+        </div>
+
+        <!-- Filter 3: Warehouse -->
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Warehouse</label>
+            <select name="warehouse" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-colors">
+                <option value="">All Warehouses</option>
+                {% for w in warehouses %}
+                    <option value="{{ w.id }}" {% if selected_warehouse == w.id|stringformat:"s" %}selected{% endif %}>{{ w.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Filter 4: Category -->
+        <div>
+            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Product Category</label>
+            <select name="category" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-colors">
+                <option value="">All Categories</option>
+                {% for c in categories %}
+                    <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Submit and Clear -->
+        <div class="md:col-span-4 flex justify-end gap-3 pt-2 border-t border-gray-50">
+            <a href="{% url 'inventory:dashboard' %}" class="px-5 py-2 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 bg-white hover:bg-gray-50 transition-colors">
+                Clear Filters
+            </a>
+            <button type="submit" class="px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/15 transition-all">
+                Apply Filters
+            </button>
+        </div>
+    </form>
+</div>
+
+<!-- Operations Ledger and Recent Documents -->
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-8">
+    <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div>
+            <h3 class="text-base font-bold text-gray-950">Recent Inventory Documents</h3>
+            <p class="text-xs text-gray-500 mt-0.5">Real-time update of receipts, delivery orders, transfers and adjustments</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="{% url 'inventory:receipt_create' %}" class="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <i class="fa-solid fa-plus"></i> New Receipt
+            </a>
+            <a href="{% url 'inventory:delivery_create' %}" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold flex items-center gap-1.5 transition-colors">
+                <i class="fa-solid fa-plus"></i> New Delivery
+            </a>
+        </div>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
+                    <th class="py-3.5 px-6">Document Type</th>
+                    <th class="py-3.5 px-6">Reference No</th>
+                    <th class="py-3.5 px-6">Supplier/Customer/Locations</th>
+                    <th class="py-3.5 px-6">Status</th>
+                    <th class="py-3.5 px-6">Created / Processed At</th>
+                    <th class="py-3.5 px-6 text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 text-sm">
+                {% if operations %}
+                    {% for op in operations %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="py-4 px-6 font-semibold text-gray-900">
+                            {{ op.type }}
+                        </td>
+                        <td class="py-4 px-6 font-mono text-xs text-gray-500">
+                            {{ op.ref }}
+                        </td>
+                        <td class="py-4 px-6 text-gray-600 truncate max-w-xs">
+                            {{ op.party }}
+                        </td>
+                        <td class="py-4 px-6">
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold text-white {{ op.status_class }}">
+                                {{ op.status }}
+                            </span>
+                        </td>
+                        <td class="py-4 px-6 text-gray-500 text-xs">
+                            {{ op.date|date:"M d, Y - H:i" }}
+                        </td>
+                        <td class="py-4 px-6 text-right">
+                            <a href="{{ op.url }}" class="text-indigo-600 hover:text-indigo-800 font-semibold text-xs">
+                                Manage <i class="fa-solid fa-angle-right ml-1"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="py-12 text-center text-gray-400">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <i class="fa-solid fa-folder-open text-3xl mb-1"></i>
+                                <p class="text-sm font-medium">No recent documents match your search criteria</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

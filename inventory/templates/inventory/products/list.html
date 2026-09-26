@@ -1,0 +1,124 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Products - StockFlow IMS{% endblock %}
+{% block header_title %}Product Management{% block header_title_addon %}{% endblock %}{% endblock %}
+
+{% block content %}
+<!-- Top Header Actions -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div class="flex-1 max-w-lg">
+        <form method="GET" class="relative">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <i class="fa-solid fa-magnifying-glass text-sm"></i>
+            </span>
+            <input type="text" name="q" value="{{ q }}" class="w-full bg-white border border-gray-250 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 transition-all outline-none" placeholder="Search by product name, SKU / Code...">
+            {% if selected_category %}
+                <input type="hidden" name="category" value="{{ selected_category }}">
+            {% endif %}
+        </form>
+    </div>
+    
+    <div class="flex items-center gap-3 shrink-0">
+        <a href="{% url 'inventory:product_create' %}" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl shadow-md shadow-indigo-600/15 flex items-center gap-2 transition-all text-sm">
+            <i class="fa-solid fa-plus text-xs"></i> Create Product
+        </a>
+    </div>
+</div>
+
+<!-- Category Badges Filter -->
+<div class="flex items-center gap-2 flex-wrap mb-6">
+    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">Categories:</span>
+    <a href="?q={{ q }}" class="px-3 py-1.5 rounded-full text-xs font-semibold border {% if not selected_category %}bg-indigo-600 border-indigo-600 text-white shadow-sm{% else %}bg-white border-gray-200 text-gray-600 hover:bg-gray-50{% endif %} transition-colors">
+        All Categories
+    </a>
+    {% for cat in categories %}
+        <a href="?category={{ cat.id }}&q={{ q }}" class="px-3 py-1.5 rounded-full text-xs font-semibold border {% if selected_category == cat.id|stringformat:"s" %}bg-indigo-600 border-indigo-600 text-white shadow-sm{% else %}bg-white border-gray-200 text-gray-600 hover:bg-gray-50{% endif %} transition-colors">
+            {{ cat.name }}
+        </a>
+    {% endfor %}
+</div>
+
+<!-- Products Table Grid -->
+<div class="bg-white rounded-2xl border border-gray-150 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+            <thead>
+                <tr class="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-150">
+                    <th class="py-3.5 px-6">Product Details</th>
+                    <th class="py-3.5 px-6">SKU / Code</th>
+                    <th class="py-3.5 px-6">Category</th>
+                    <th class="py-3.5 px-6">Stock Level per Location</th>
+                    <th class="py-3.5 px-6">Total Stock</th>
+                    <th class="py-3.5 px-6 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 text-sm">
+                {% if products %}
+                    {% for p in products %}
+                    <tr class="hover:bg-gray-50/50 transition-colors">
+                        <td class="py-4 px-6">
+                            <div class="font-bold text-gray-950">{{ p.name }}</div>
+                            <div class="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{{ p.description|default:"No description provided" }}</div>
+                        </td>
+                        <td class="py-4 px-6 font-mono text-xs font-semibold text-indigo-600">
+                            {{ p.sku }}
+                        </td>
+                        <td class="py-4 px-6">
+                            {% if p.category %}
+                                <span class="px-2.5 py-1 rounded-md bg-indigo-50 border border-indigo-100 text-indigo-700 font-semibold text-xs">
+                                    {{ p.category.name }}
+                                </span>
+                            {% else %}
+                                <span class="text-xs text-gray-400">Uncategorized</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-6">
+                            {% if p.stock_records %}
+                                <div class="space-y-1 max-h-24 overflow-y-auto pr-2">
+                                    {% for r in p.stock_records %}
+                                        <div class="flex items-center justify-between gap-4 text-xs font-medium">
+                                            <span class="text-gray-500">{{ r.location }}</span>
+                                            <span class="font-bold {% if r.current_stock <= r.reorder_point %}text-rose-600{% else %}text-emerald-600{% endif %}">
+                                                {{ r.current_stock }} {{ p.uom.symbol|default:p.uom.name }}
+                                            </span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="text-xs text-gray-400">No stock in any location</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-4 px-6">
+                            <span class="font-bold text-base text-gray-900">
+                                {{ p.total_qty }}
+                            </span>
+                            <span class="text-xs text-gray-400 font-medium ml-0.5">{{ p.uom.symbol|default:p.uom.name }}</span>
+                        </td>
+                        <td class="py-4 px-6 text-right">
+                            <div class="flex justify-end gap-2">
+                                <a href="{% url 'inventory:product_update' p.id %}" class="h-8 w-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all" title="Edit Product">
+                                    <i class="fa-solid fa-pen text-xs"></i>
+                                </a>
+                                <a href="{% url 'inventory:product_delete' p.id %}" onclick="return confirm('Are you sure you want to delete this product?');" class="h-8 w-8 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50/50 transition-all" title="Delete Product">
+                                    <i class="fa-solid fa-trash-can text-xs"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="py-12 text-center text-gray-400">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <i class="fa-solid fa-box-open text-3xl mb-1"></i>
+                                <p class="text-sm font-medium">No products found</p>
+                                <p class="text-xs">Create a new product to get started</p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

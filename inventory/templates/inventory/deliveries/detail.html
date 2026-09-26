@@ -1,0 +1,188 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Delivery {{ delivery.reference_number }} - StockFlow IMS{% endblock %}
+{% block header_title %}Delivery Details{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Hand: Details & Items -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Delivery Info Panel -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                    <span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Reference Number</span>
+                    <h3 class="text-lg font-bold text-gray-900 font-mono">{{ delivery.reference_number }}</h3>
+                </div>
+                <div>
+                    {% if delivery.status == 'delivered' %}
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">Delivered</span>
+                    {% elif delivery.status == 'delivered' %}
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">Delivered</span>
+                    {% elif delivery.status == 'cancelled' %}
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-rose-50 border border-rose-200 text-rose-700">Cancelled</span>
+                    {% else %}
+                        {% if delivery.status == 'draft' %}
+                            <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">Draft</span>
+                        {% elif delivery.status == 'picking' %}
+                            <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-amber-100 border border-amber-200 text-amber-700">Picking</span>
+                        {% elif delivery.status == 'packed' %}
+                            <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700">Packed</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-6 text-xs text-gray-500">
+                <div>
+                    <span class="text-gray-600 uppercase text-xs font-bold tracking-wider block mb-1">Customer</span>
+                    <span class="font-medium text-gray-800">{{ delivery.customer_name|default:"N/A" }}</span>
+                </div>
+                <div>
+                    <span class="inventory text-gray-600 uppercase text-xs font-bold tracking-wider block mb-1">Created</span>
+                    <span class="font-medium text-gray-700">{{ delivery.created_at|date:"M d, Y - H:i" }}</span>
+                </div>
+                <inventory>
+                    <div>
+                        <span class="text-gray-600 uppercase text-xs font-bold tracking-wider block mb-1">Created By</span>
+                        <span class="font-medium text-gray-700">{{ delivery.created_by.username|default:"System" }}</span>
+                    </div>
+                </div>
+            </div>
+
+            {% if delivery.notes %}
+                <div class="mt-4 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-gray-600">
+                    <span class="font-bold block mb-1 uppercase tracking-wider text-[10px] inventory">Notes / Instructions:</span>
+                    {{ delivery.notes }}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Delivery Items Panel -->
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-150 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Line Items</h3>
+                {% if delivery.status == 'draft' and delivery.items.exists %}
+                    <a href="{% url 'inventory:delivery_validate' delivery.id %}" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check"></i> Mark as Shipped & Deliver
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-150">
+                            <th class="py-3 px-6">Product</th>
+                            <th class="inventory text-xs font-semibold text-gray-500">Picked From</th>
+                            <th class="inventory text-xs font-semibold text-gray-500">Quantity</th>
+                            <th class="inventory text-xs font-semibold text-gray-500">Unit Price</th>
+                            <th class="inventory text-right text-gray-500">Total</th>
+                            {% if delivery.status == 'draft' %}
+                                <th class="inventory text-right text-xs text-gray-500">Action</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-sm">
+                        {% if delivery.items.exists %}
+                            {% for item in delivery.items.all %}
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="py-4 px-6 font-bold text-gray-900">
+                                    {{ item.product.name }}
+                                    <div class="text-xs text-gray-400 mt-0.5 font-mono">{{ item.product.sku }}</div>
+                                </td>
+                                <td class="py-4 px-6 text-gray-600">
+                                    {{ item.location.name }}
+                                </td>
+                                <td class="py-4 px-6 font-bold text-gray-900">
+                                    {{ item.quantity }} <span class="text-xs text-gray-400 font-medium">{{ item.product.uom.symbol|default:item.product.uom.name }}</span>
+                                </td>
+                                <td class="py-4 px-6 text-right text-gray-600">
+                                    ${{ item.unit_price|floatformat:2 }}
+                                </td>
+                                <td class="py-4 px-6 text-right font-bold text-gray-900">
+                                    ${{ item.total_price|floatformat:2 }}
+                                </td>
+                                {% if delivery.status == 'draft' %}
+                                    <td class="py-4 px-6 text-right">
+                                        <a href="{% url 'inventory:delivery_item_delete' item.id %}" onclick="return confirm('Remove this item?')" class="text-rose-600 hover:text-rose-800 font-bold text-xs" title="Remove item">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </a>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="py-12 text-center text-gray-400">
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <i class="fa-solid fa-clipboard-list text-3xl mb-1"></i>
+                                        <p class="text-sm font-medium">No items added to this order yet</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Hand: Add Item Sidebar -->
+    {% if delivery.status == 'draft' %}
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm p-6 h-fit">
+            <h3 class="text-base font-bold text-slate-900 mb-4 pb-3 border-b border-gray-100 flex items-center gap-2">
+                <i class="fa-solid fa-plus-circle text-indigo-600"></i> Add Product Item
+            </h3>
+            
+            <form method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Select Product</label>
+                    <select name="product" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                        <option value="">-- Choose Product --</option>
+                        {% for p in products %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.sku }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Pick From Location</label>
+                    <select name="location" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                        <option value="">-- Choose Location --</option>
+                        {% for loc in locations %}
+                            <option value="{{ loc.id }}">{{ loc }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Quantity</label>
+                        <input type="number" name="quantity" min="1" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Unit Price ($)</label>
+                        <input type="number" step="0.01" name="unit_price" value="0.00" class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-600/15 transition-all text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus text-xs"></i> Add Item Line
+                </button>
+            </form>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm p-6 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wider">Completed</h3>
+            <div class="flex items-start gap-2.5 text-xs text-gray-500 leading-relaxed">
+                <i class="fa-solid fa-circle-check text-emerald-500 text-base mt-0.5"></i>
+                <div>
+                    This delivery order has been completed and stock has been deducted from the ledger.
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Move History - StockFlow IMS{% endblock %}
+{% block header_title %}Move History (Stock Ledger){% endblock %}
+{% block content %}
+<div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
+<div class="p-6 border-b"><h3 class="font-bold">Stock Ledger</h3><p class="text-xs text-gray-500">Every validated receipt, delivery, transfer and adjustment</p></div>
+<div class="overflow-x-auto"><table class="w-full text-left text-sm">
+<thead><tr class="bg-gray-50 text-xs font-bold uppercase text-gray-500 border-b"><th class="py-3 px-6">Date</th><th class="py-3 px-6">Ref</th><th class="py-3 px-6">Type</th><th class="py-3 px-6">Product</th><th class="py-3 px-6">Location</th><th class="py-3 px-6 text-right">Change</th></tr></thead>
+<tbody class="divide-y">
+{% for h in history %}
+<tr class="hover:bg-gray-50/50"><td class="py-3 px-6 text-xs text-gray-500">{{ h.date|date:"M d, Y H:i" }}</td><td class="py-3 px-6 font-mono text-xs">{{ h.ref }}</td><td class="py-3 px-6">{{ h.type }}</td><td class="py-3 px-6 font-semibold">{{ h.product }} <span class="text-xs text-gray-400 font-mono">{{ h.sku }}</span></td><td class="py-3 px-6 text-xs">{{ h.location }}</td><td class="py-3 px-6 text-right font-bold">{{ h.change }}</td></tr>
+{% empty %}<tr><td colspan="6" class="py-12 text-center text-gray-400">No ledger entries yet — validate a receipt or delivery.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

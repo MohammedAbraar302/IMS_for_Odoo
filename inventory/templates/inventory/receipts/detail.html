@@ -1,0 +1,176 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Receipt {{ receipt.reference_number }} - StockFlow IMS{% endblock %}
+{% block header_title %}Receipt Details{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Left Hand: Details & Items -->
+    <div class="lg:col-span-2 space-y-6">
+        <!-- Receipt Info Panel -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <div>
+                    <span class="text-xs text-gray-400 font-bold uppercase tracking-wider block">Reference Number</span>
+                    <h3 class="text-lg font-bold text-gray-900 font-mono">{{ receipt.reference_number }}</h3>
+                </div>
+                <div>
+                    {% if receipt.status == 'draft' %}
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">Draft</span>
+                    {% elif receipt.status == 'validated' %}
+                        <span class="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 text-emerald-700">Validated</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
+                <div>
+                    <span class="text-xs text-gray-400 font-semibold uppercase tracking-wider block mb-1">Supplier</span>
+                    <span class="font-bold text-gray-900">{{ receipt.supplier }}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 font-semibold uppercase tracking-wider block mb-1">Received At</span>
+                    <span class="font-medium text-gray-700">{{ receipt.received_at|date:"M d, Y - H:i" }}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 font-semibold uppercase tracking-wider block mb-1">Created By</span>
+                    <span class="font-medium text-gray-700">{{ receipt.created_by.username|default:"System" }}</span>
+                </div>
+            </div>
+
+            {% if receipt.notes %}
+                <div class="mt-4 p-3 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-600">
+                    <span class="font-bold block mb-1 uppercase tracking-wider text-[10px] text-gray-400">Notes / Instructions:</span>
+                    {{ receipt.notes }}
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Receipt Items Panel -->
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-gray-150 flex items-center justify-between">
+                <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Line Items</h3>
+                {% if receipt.status == 'draft' and receipt.items.exists %}
+                    <a href="{% url 'inventory:receipt_validate' receipt.id %}" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-check"></i> Validate Receipt
+                    </a>
+                {% endif %}
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-150">
+                            <th class="py-3 px-6">Product</th>
+                            <th class="py-3 px-6">Destination Location</th>
+                            <th class="py-3 px-6">Quantity</th>
+                            <th class="py-3 px-6 text-right">Unit Price</th>
+                            <th class="py-3 px-6 text-right">Total</th>
+                            {% if receipt.status == 'draft' %}
+                                <th class="py-3 px-6 text-right">Action</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 text-sm">
+                        {% if receipt.items.exists %}
+                            {% for item in receipt.items.all %}
+                            <tr class="hover:bg-gray-50/50 transition-colors">
+                                <td class="py-4 px-6">
+                                    <div class="font-bold text-gray-900">{{ item.product.name }}</div>
+                                    <div class="text-xs text-gray-400 font-mono mt-0.5">{{ item.product.sku }}</div>
+                                </td>
+                                <td class="py-4 px-6 text-gray-600">
+                                    {{ item.location }}
+                                </td>
+                                <td class="py-4 px-6 font-bold text-gray-900">
+                                    {{ item.quantity }} <span class="text-xs text-gray-400 font-medium">{{ item.product.uom.symbol|default:item.product.uom.name }}</span>
+                                </td>
+                                <td class="py-4 px-6 text-right text-gray-600">
+                                    ${{ item.unit_price|floatformat:2 }}
+                                </td>
+                                <td class="py-4 px-6 text-right font-bold text-gray-900">
+                                    ${{ item.total_price|floatformat:2 }}
+                                </td>
+                                {% if receipt.status == 'draft' %}
+                                    <td class="py-4 px-6 text-right">
+                                        <a href="{% url 'inventory:receipt_item_delete' item.id %}" onclick="return confirm('Remove this item?')" class="text-rose-600 hover:text-rose-800 font-bold text-xs" title="Remove item">
+                                            <i class="fa-solid fa-trash-can"></i>
+                                        </a>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="{% if receipt.status == 'draft' %}6{% else %}5{% endif %}" class="py-12 text-center text-gray-400">
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <i class="fa-solid fa-clipboard-list text-3xl mb-1"></i>
+                                        <p class="text-sm font-medium">No items added to this receipt yet</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Hand: Add Item Sidebar -->
+    {% if receipt.status == 'draft' %}
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm p-6 h-fit">
+            <h3 class="text-base font-bold text-slate-900 mb-4 pb-3 border-b border-gray-100 flex items-center gap-2">
+                <i class="fa-solid fa-plus-circle text-indigo-600"></i> Add Product Item
+            </h3>
+            
+            <form method="POST" class="space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Select Product</label>
+                    <select name="product" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                        <option value="">-- Choose Product --</option>
+                        {% for p in products %}
+                            <option value="{{ p.id }}">{{ p.name }} ({{ p.sku }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Destination Location</label>
+                    <select name="location" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                        <option value="">-- Choose Location --</option>
+                        {% for loc in locations %}
+                            <option value="{{ loc.id }}">{{ loc }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Quantity</label>
+                        <input type="number" name="quantity" min="1" required class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Unit Price ($)</label>
+                        <input type="number" step="0.01" name="unit_price" value="0.00" class="w-full bg-slate-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:bg-white transition-all outline-none">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md shadow-indigo-600/15 transition-all text-sm flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus text-xs"></i> Add Item Line
+                </button>
+            </form>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-2xl border border-gray-150 shadow-sm p-6 h-fit">
+            <h3 class="text-sm font-bold text-slate-900 mb-2 uppercase tracking-wider">Receipt Cleared</h3>
+            <div class="flex items-start gap-2.5 text-xs text-gray-500 leading-relaxed">
+                <i class="fa-solid fa-circle-check text-emerald-500 text-base mt-0.5"></i>
+                <div>
+                    This receipt is fully <strong>validated</strong>. Stock quantity increases have been recorded and the ledger entry finalized.
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends 'inventory/base.html' %}
+{% block title %}Adjustment {{ adjustment.reference_number }}{% endblock %}
+{% block header_title %}Adjustment Details{% endblock %}
+{% block content %}
+<div class="max-w-3xl bg-white p-6 rounded-2xl border shadow-sm">
+<h3 class="font-mono font-bold text-lg">{{ adjustment.reference_number }}</h3>
+<p class="text-sm text-gray-500">{{ adjustment.get_adjustment_type_display }} — {{ adjustment.reason }} ({{ adjustment.get_status_display }})</p>
+<table class="w-full mt-4 text-sm text-left"><thead><tr class="bg-gray-50 text-xs uppercase text-gray-500 border-b"><th class="py-2 px-4">Product</th><th class="py-2 px-4">Location</th><th class="py-2 px-4">Prev</th><th class="py-2 px-4">Change</th><th class="py-2 px-4">New</th></tr></thead>
+<tbody>{% for i in adjustment.items.all %}<tr class="border-b"><td class="py-2 px-4 font-semibold">{{ i.product.name }}</td><td class="py-2 px-4">{{ i.location }}</td><td class="py-2 px-4">{{ i.previous_stock }}</td><td class="py-2 px-4 font-bold">{{ i.quantity_change }}</td><td class="py-2 px-4 font-bold">{{ i.new_stock }}</td></tr>{% endfor %}</tbody></table>
+<a href="{% url 'inventory:adjustment_list' %}" class="text-sm text-indigo-600 font-semibold mt-4 inline-block">← Back</a>
+</div>
+{% endblock %}
